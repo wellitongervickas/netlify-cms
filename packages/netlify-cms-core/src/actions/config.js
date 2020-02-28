@@ -4,6 +4,7 @@ import { trimStart, get, isPlainObject } from 'lodash';
 import { authenticateUser } from 'Actions/auth';
 import * as publishModes from 'Constants/publishModes';
 import { validateConfig } from 'Constants/configSchema';
+import { selectIdentifier } from 'Reducers/collections';
 
 export const CONFIG_REQUEST = 'CONFIG_REQUEST';
 export const CONFIG_SUCCESS = 'CONFIG_SUCCESS';
@@ -54,6 +55,7 @@ export function applyDefaults(config) {
         map.setIn(['slug', 'sanitize_replacement'], '-');
       }
 
+      const langs = map.get('locales');
       // Strip leading slash from collection folders and files
       map.set(
         'collections',
@@ -66,6 +68,22 @@ export function applyDefaults(config) {
             }
             if (collection.has('media_folder') && !collection.has('public_folder')) {
               collection = collection.set('public_folder', collection.get('media_folder'));
+            }
+
+            const fields = collection.get('fields');
+            const identifier_field = selectIdentifier(collection);
+            if (langs && fields && collection.get('multi_content')) {
+              // add languague fields
+              collection = collection.set(
+                'fields',
+                fromJS(addLanguageFields(fields.toJS(), langs.toJS())),
+              );
+
+              // add identifier field
+              collection = collection.set(
+                'identifier_field',
+                `${langs.first()}.${identifier_field}`,
+              );
             }
             return collection.set('folder', trimStart(folder, '/'));
           }
@@ -82,6 +100,12 @@ export function applyDefaults(config) {
         }),
       );
     });
+}
+
+export function addLanguageFields(fields, langs) {
+  return langs.reduce((acc, item) => {
+    return [...acc, { label: item, name: item, widget: 'object', fields, multiContent: true }];
+  }, []);
 }
 
 function mergePreloadedConfig(preloadedConfig, loadedConfig) {
