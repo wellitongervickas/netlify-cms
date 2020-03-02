@@ -212,11 +212,11 @@ export default class GitLab implements Implementation {
     };
   }
 
-  async persistEntry(entry: Entry, mediaFiles: AssetProxy[], options: PersistOptions) {
+  async persistEntry(entries: Entry[], mediaFiles: AssetProxy[], options: PersistOptions) {
     // persistEntry is a transactional operation
     return runWithLock(
       this.lock,
-      () => this.api!.persistFiles(entry, mediaFiles, options),
+      () => this.api!.persistFiles(entries, mediaFiles, options),
       'Failed to acquire persist entry lock',
     );
   }
@@ -317,19 +317,7 @@ export default class GitLab implements Implementation {
     } = {},
   ) {
     const contentKey = generateContentKey(collection, slug);
-    const data = await this.api!.readUnpublishedBranchFile(contentKey);
-    const mediaFiles = await loadEntryMediaFiles(
-      data.metaData.branch,
-      data.metaData.objects.entry.mediaFiles,
-    );
-    return {
-      slug,
-      file: { path: data.metaData.objects.entry.path, id: null },
-      data: data.fileData as string,
-      metaData: data.metaData,
-      mediaFiles,
-      isModification: data.isModification,
-    };
+    return await this.api!.readUnpublishedBranchFile(contentKey, loadEntryMediaFiles);
   }
 
   async updateUnpublishedEntryStatus(collection: string, slug: string, newStatus: string) {
