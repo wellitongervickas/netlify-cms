@@ -376,10 +376,10 @@ export default class API {
     return files;
   }
 
-  async persistFiles(entry: Entry | null, mediaFiles: AssetProxy[], options: PersistOptions) {
-    const files = entry ? [entry, ...mediaFiles] : mediaFiles;
+  async persistFiles(entries: Entry[] | null, mediaFiles: AssetProxy[], options: PersistOptions) {
+    const files = entries ? [...entries, ...mediaFiles] : mediaFiles;
     if (options.useWorkflow) {
-      return this.editorialWorkflowGit(files, entry as Entry, options);
+      return this.editorialWorkflowGit(files, entries[0] as Entry, options);
     } else {
       return this.uploadFiles(files, { commitMessage: options.commitMessage, branch: this.branch });
     }
@@ -551,38 +551,57 @@ export default class API {
     const branch = branchFromContentKey(contentKey);
     const pullRequest = await this.getBranchPullRequest(branch);
     const diff = await this.getDifferences(branch);
-    const { newPath: path, newFile } = diff.find(d => !d.binary) as {
-      newPath: string;
-      newFile: boolean;
-    };
+    const entries = diff.filter(d => !d.binary).map(d => ({ path: d.newPath, newFile: d.newFile }));
     // TODO: get real file id
     const mediaFiles = await Promise.all(
-      diff.filter(d => d.newPath !== path).map(d => ({ path: d.newPath, id: null })),
+      diff.filter(d => d.binary).map(d => ({ path: d.newPath, id: null })),
     );
     const label = await this.getPullRequestLabel(pullRequest.id);
     const status = labelToStatus(label);
-    return { branch, collection, slug, path, status, newFile, mediaFiles };
+    return { branch, collection, slug, status, entries, mediaFiles };
   }
 
-  async readUnpublishedBranchFile(contentKey: string) {
-    const {
-      branch,
-      collection,
-      slug,
-      path,
-      status,
-      newFile,
-      mediaFiles,
-    } = await this.retrieveMetadata(contentKey);
+  async readUnpublishedBranchFile(contentKey: string, loadEntryMediaFiles) {
+    const { branch, collection, slug, status, entries, mediaFiles } = await this.retrieveMetadata(
+      contentKey,
+    );
 
-    const fileData = (await this.readFile(path, null, { branch })) as string;
+    if (entries.length === 1) {
+      const { path, newFile } = entries[0];
+      const fileData = (await this.readFile(path, null, { branch })) as string;
+      const loadedMediaFiles =
+        loadEntryMediaFiles && (await loadEntryMediaFiles(branch, mediaFiles));
 
-    return {
-      slug,
-      metaData: { branch, collection, objects: { entry: { path, mediaFiles } }, status },
-      fileData,
-      isModification: !newFile,
-    };
+      return {
+        slug,
+        file: { path, id: null },
+        metaData: { branch, collection, objects: { entry: { path, mediaFiles } }, status },
+        data: fileData,
+        isModification: !newFile,
+        ...(loadedMediaFiles && { mediaFiles: loadedMediaFiles }),
+      };
+    }
+
+    const loadedMediaFiles = loadEntryMediaFiles && (await loadEntryMediaFiles(branch, mediaFiles));
+    return await Promise.all(
+      entries.map(async file => {
+        const fileData = await this.readFile(file.path, null, { branch });
+        return {
+          slug,
+          file: { path: file.path, id: null },
+          metaData: {
+            branch,
+            collection,
+            objects: { entry: { mediaFiles } },
+            status,
+          },
+          data: fileData,
+          isModification: !file.newFile,
+          multiContentKey: contentKey,
+          ...(loadedMediaFiles && { mediaFiles: loadedMediaFiles }),
+        };
+      }),
+    );
   }
 
   async listUnpublishedBranches() {

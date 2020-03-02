@@ -343,14 +343,14 @@ export default class BitbucketBackend implements Implementation {
     };
   }
 
-  async persistEntry(entry: Entry, mediaFiles: AssetProxy[], options: PersistOptions) {
+  async persistEntry(entries: Entry[], mediaFiles: AssetProxy[], options: PersistOptions) {
     const client = await this.getLargeMediaClient();
     // persistEntry is a transactional operation
     return runWithLock(
       this.lock,
       async () =>
         this.api!.persistFiles(
-          entry,
+          entries,
           client.enabled ? await getLargeMediaFilteredMediaFiles(client, mediaFiles) : mediaFiles,
           options,
         ),
@@ -465,22 +465,7 @@ export default class BitbucketBackend implements Implementation {
     } = {},
   ) {
     const contentKey = generateContentKey(collection, slug);
-    const data = await this.api!.readUnpublishedBranchFile(contentKey);
-    const mediaFiles = await loadEntryMediaFiles(
-      data.metaData.branch,
-      // TODO: fix this
-      // eslint-disable-next-line @typescript-eslint/ban-ts-ignore
-      // @ts-ignore
-      data.metaData.objects.entry.mediaFiles,
-    );
-    return {
-      slug,
-      file: { path: data.metaData.objects.entry.path, id: null },
-      data: data.fileData as string,
-      metaData: data.metaData,
-      mediaFiles,
-      isModification: data.isModification,
-    };
+    return await this.api!.readUnpublishedBranchFile(contentKey, loadEntryMediaFiles);
   }
 
   async updateUnpublishedEntryStatus(collection: string, slug: string, newStatus: string) {

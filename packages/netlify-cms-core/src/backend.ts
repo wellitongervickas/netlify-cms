@@ -802,7 +802,9 @@ export class Backend {
     status,
   }: PersistArgs) {
     const newEntry = entryDraft.getIn(['entry', 'newRecord']) || false;
-    const hasMultipleContent = collection.get('multi_content') && config.get('locales');
+    const hasMultipleContent =
+      ['same_folder', 'diff_folder'].includes(collection.get('multi_content')) &&
+      config.get('locales');
 
     const parsedData = {
       title: entryDraft.getIn(['entry', 'data', 'title'], 'No Title') as string,
@@ -854,7 +856,7 @@ export class Backend {
         raw: this.entryToRaw(collection, entryDraft.get('entry')),
       };
     }
-
+    console.log(entryObj);
     let entriesObj = [entryObj];
     if (hasMultipleContent) {
       const multiContent = collection.get('multi_content');

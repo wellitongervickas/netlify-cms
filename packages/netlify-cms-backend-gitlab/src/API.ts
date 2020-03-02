@@ -550,10 +550,6 @@ export default class API {
     const entries = diff
       .filter(d => !d.binary)
       .map(d => ({ path: d.old_path, newFile: d.new_file }));
-    const { old_path: path, new_file: newFile } = diff.find(d => !d.binary) as {
-      old_path: string;
-      new_file: boolean;
-    };
     const mediaFiles = await Promise.all(
       diff
         .filter(d => d.binary)
