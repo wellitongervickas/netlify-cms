@@ -62,10 +62,6 @@ export function applyDefaults(config) {
         map.get('collections').map(collection => {
           const folder = collection.get('folder');
           if (folder) {
-            if (collection.has('path') && !collection.has('media_folder')) {
-              // default value for media folder when using the path config
-              collection = collection.set('media_folder', '');
-            }
             if (collection.has('media_folder') && !collection.has('public_folder')) {
               collection = collection.set('public_folder', collection.get('media_folder'));
             }
@@ -79,17 +75,30 @@ export function applyDefaults(config) {
                 fromJS(addLanguageFields(fields.toJS(), langs.toJS())),
               );
 
-              // add identifier field
+              // remove path for different folder config
+              if (collection.get('multi_content') === 'diff_folder') {
+                collection = collection.delete('path');
+              }
+              // add identifier config
               collection = collection.set(
                 'identifier_field',
                 `${langs.first()}.${identifier_field}`,
               );
             }
+
+            if (collection.has('path') && !collection.has('media_folder')) {
+              // default value for media folder when using the path config
+              collection = collection.set('media_folder', '');
+            }
+
             return collection.set('folder', trimStart(folder, '/'));
           }
 
           const files = collection.get('files');
           if (files) {
+            // remove multi_content config if set
+            collection = collection.delete('multi_content');
+
             return collection.set(
               'files',
               files.map(file => {

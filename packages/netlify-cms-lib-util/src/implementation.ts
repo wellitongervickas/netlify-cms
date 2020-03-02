@@ -206,13 +206,7 @@ const fetchUnpublishedFiles = async (
                 resolve({ error: true });
                 sem.leave();
               } else {
-                resolve({
-                  slug: data.slug,
-                  file: { path: data.metaData.objects.entry.path, id: null },
-                  data: data.fileData,
-                  metaData: data.metaData,
-                  isModification: data.isModification,
-                });
+                resolve(data);
                 sem.leave();
               }
             })
@@ -226,7 +220,7 @@ const fetchUnpublishedFiles = async (
     );
   });
   return Promise.all(promises).then(loadedEntries =>
-    loadedEntries.filter(loadedEntry => !(loadedEntry as { error: boolean }).error),
+    loadedEntries.flat().filter(loadedEntry => !(loadedEntry as { error: boolean }).error),
   ) as Promise<ImplementationEntry[]>;
 };
 

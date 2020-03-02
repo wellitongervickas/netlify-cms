@@ -1,6 +1,13 @@
 import AJV from 'ajv';
 import ajvErrors from 'ajv-errors';
+import locale from 'locale-codes';
+import { uniq } from 'lodash';
 import { formatExtensions, frontmatterFormats, extensionFormatters } from 'Formats/formats';
+
+/**
+ * valid locales.
+ */
+const locales = uniq(locale.all.map(l => l['iso639-1']).filter(Boolean));
 
 /**
  * Config for fields in both file and folder collections.
@@ -82,6 +89,11 @@ const getConfigSchema = () => ({
         clean_accents: { type: 'boolean' },
       },
     },
+    locales: {
+      type: 'array',
+      minItems: 2,
+      items: { type: 'string', enum: locales },
+    },
     collections: {
       type: 'array',
       minItems: 1,
@@ -133,6 +145,7 @@ const getConfigSchema = () => ({
               type: 'string',
             },
           },
+          multi_content: { type: 'string', enum: ['single_file', 'same_folder', 'diff_folder'] },
           fields: fieldsConfig,
         },
         required: ['name', 'label'],

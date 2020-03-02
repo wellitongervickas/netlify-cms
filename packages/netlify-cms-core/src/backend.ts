@@ -1,4 +1,4 @@
-import { attempt, flatten, isError, uniq } from 'lodash';
+import { attempt, flatten, isError, uniq, groupBy, omit } from 'lodash';
 import { List, Map, fromJS } from 'immutable';
 import * as fuzzy from 'fuzzy';
 import { resolveFormat } from './formats/formats';
@@ -284,16 +284,17 @@ export class Backend {
     return filteredEntries;
   }
 
-  listEntries(collection: Collection) {
+  listEntries(collection: Collection, depth: number) {
     const extension = selectFolderEntryExtension(collection);
     let listMethod: () => Promise<ImplementationEntry[]>;
     const collectionType = collection.get('type');
+    const selectedDepth = depth || getPathDepth(collection.get('path', '') as string);
     if (collectionType === FOLDER) {
       listMethod = () =>
         this.implementation.entriesByFolder(
           collection.get('folder') as string,
           extension,
-          getPathDepth(collection.get('path', '') as string),
+          selectedDepth,
         );
     } else if (collectionType === FILES) {
       const files = collection
@@ -328,19 +329,16 @@ export class Backend {
   // repeats the process. Once there is no available "next" action, it
   // returns all the collected entries. Used to retrieve all entries
   // for local searches and queries.
-  async listAllEntries(collection: Collection) {
+  async listAllEntries(collection: Collection, depth: number) {
+    const selectedDepth = depth || getPathDepth(collection.get('path', '') as string);
     if (collection.get('folder') && this.implementation.allEntriesByFolder) {
       const extension = selectFolderEntryExtension(collection);
       return this.implementation
-        .allEntriesByFolder(
-          collection.get('folder') as string,
-          extension,
-          getPathDepth(collection.get('path', '') as string),
-        )
+        .allEntriesByFolder(collection.get('folder') as string, extension, selectedDepth)
         .then(entries => this.processEntries(entries, collection));
     }
 
-    const response = await this.listEntries(collection);
+    const response = await this.listEntries(collection, selectedDepth);
     const { entries } = response;
     let { cursor } = response;
     while (cursor && cursor.actions!.includes('next')) {
@@ -349,6 +347,39 @@ export class Backend {
       cursor = newCursor;
     }
     return entries;
+  }
+
+  async listAllMultipleEntires(collection: Collection, page: number, locales: string[]) {
+    const multiContent = collection.get('multi_content');
+    const depth = multiContent === 'diff_folder' ? 2 : 0;
+    const entries = await this.listAllEntries(collection, depth);
+    let multiEntries;
+    if (multiContent === 'same_folder') {
+      multiEntries = entries
+        .filter(entry => locales.some(l => entry.slug.endsWith(`.${l}`)))
+        .map(entry => {
+          const path = entry.path.split('.');
+          const locale = path.splice(-2, 2)[0];
+          return {
+            ...entry,
+            slug: entry.slug.replace(`.${locale}`, ''),
+            multiContentKey: path.join('.'),
+          };
+        });
+    } else if (multiContent === 'diff_folder') {
+      multiEntries = entries
+        .filter(entry => locales.some(l => entry.slug.startsWith(`${l}/`)))
+        .map(entry => {
+          const path = entry.path.split('/');
+          const locale = path.splice(-2, 1)[0];
+          return {
+            ...entry,
+            slug: entry.slug.replace(`${locale}/`, ''),
+            multiContentKey: path.join('/'),
+          };
+        });
+    }
+    return { entries: this.combineMultiContentEntries(multiEntries, collection) };
   }
 
   async search(collections: Collection[], searchTerm: string) {
@@ -490,31 +521,73 @@ export class Backend {
     return localForage.removeItem(getEntryBackupKey());
   }
 
-  async getEntry(state: State, collection: Collection, slug: string) {
+  async getEntry(
+    state: State,
+    collection: Collection,
+    slug: string,
+    locales: string[],
+    multiContent: string,
+  ) {
     const path = selectEntryPath(collection, slug) as string;
     const label = selectFileEntryLabel(collection, slug);
+    const extension = selectFolderEntryExtension(collection);
+    let loadedEntries;
+    let mediaFiles;
 
     const integration = selectIntegration(state.integrations, null, 'assetStore');
 
-    const loadedEntry = await this.implementation.getEntry(path);
-    const entry = createEntry(collection.get('name'), slug, loadedEntry.file.path, {
-      raw: loadedEntry.data,
-      label,
-      mediaFiles: [],
-    });
-
-    const entryWithFormat = this.entryWithFormat(collection)(entry);
-    const mediaFolders = selectMediaFolders(state, collection, fromJS(entryWithFormat));
-    if (mediaFolders.length > 0 && !integration) {
-      entry.mediaFiles = [];
-      for (const folder of mediaFolders) {
-        entry.mediaFiles = [...entry.mediaFiles, ...(await this.implementation.getMedia(folder))];
-      }
+    if (locales && multiContent === 'same_folder') {
+      loadedEntries = await Promise.all(
+        locales.map(l =>
+          this.implementation
+            .getEntry(path.replace(extension, `${l}.${extension}`))
+            .catch(() => undefined),
+        ),
+      );
+    } else if (locales && multiContent === 'diff_folder') {
+      loadedEntries = await Promise.all(
+        locales.map(l =>
+          this.implementation
+            .getEntry(path.replace(`${slug}`, `${l}/${slug}`))
+            .catch(() => undefined),
+        ),
+      );
     } else {
-      entry.mediaFiles = state.mediaLibrary.get('files') || [];
+      const loadedEntry = await this.implementation.getEntry(path);
+      loadedEntries = [loadedEntry];
     }
 
-    return entryWithFormat;
+    const entries = await Promise.all(
+      loadedEntries.filter(Boolean).map(async loadedEntry => {
+        const entry = createEntry(collection.get('name'), slug, loadedEntry.file.path, {
+          raw: loadedEntry.data,
+          label,
+          mediaFiles: [],
+        });
+
+        const entryWithFormat = this.entryWithFormat(collection)(entry);
+        if (!mediaFiles) {
+          const mediaFolders = selectMediaFolders(state, collection, fromJS(entryWithFormat));
+          if (mediaFolders.length > 0 && !integration) {
+            mediaFiles = [];
+            for (const folder of mediaFolders) {
+              mediaFiles = [...entry.mediaFiles, ...(await this.implementation.getMedia(folder))];
+            }
+          } else {
+            mediaFiles = state.mediaLibrary.get('files') || [];
+          }
+        }
+        entry.mediaFiles = mediaFiles;
+
+        return entryWithFormat;
+      }),
+    );
+
+    if (entries.length === 1) {
+      return entries[0];
+    }
+
+    return this.combineEntries(entries, multiContent);
   }
 
   getMedia() {
@@ -558,14 +631,15 @@ export class Backend {
             raw: loadedEntry.data,
             isModification: loadedEntry.isModification,
             label: collection && selectFileEntryLabel(collection, loadedEntry.slug!),
+            multiContentKey: loadedEntry.multiContentKey,
+            multiContent: collection.get('multi_content'),
           });
           entry.metaData = loadedEntry.metaData;
           return entry;
         }),
       )
-      .then(entries => ({
-        pagination: 0,
-        entries: entries.reduce((acc, entry) => {
+      .then(entries => {
+        const formattedEntries = entries.reduce((acc, entry) => {
           const collection = collections.get(entry.collection);
           if (collection) {
             acc.push(this.entryWithFormat(collection)(entry) as EntryValue);
@@ -575,22 +649,73 @@ export class Backend {
             );
           }
           return acc;
-        }, [] as EntryValue[]),
-      }));
+        }, [] as EntryValue[]);
+
+        const multiContentEntries = formattedEntries.filter(e => e.multiContentKey);
+        const combinedMultiEntries = this.combineMultiContentEntries(multiContentEntries);
+        return {
+          pagination: 0,
+          entries: [...formattedEntries.filter(e => !e.multiContentKey), ...combinedMultiEntries],
+        };
+      });
+  }
+
+  combineMultiContentEntries(entries: entryMap[], collection: Collection) {
+    const groupEntries = groupBy(entries, 'multiContentKey');
+    return Object.keys(groupEntries).reduce((acc, key) => {
+      const entries = groupEntries[key];
+      const multiContent =
+        entries[0].multiContent || (collection && collection.get('multi_content'));
+      return [...acc, this.combineEntries(entries, multiContent)];
+    }, []);
+  }
+
+  combineEntries(entries: entryMap[], multiContent: string) {
+    const data = {};
+    let splitChar;
+    let path;
+    if (multiContent == 'same_folder') {
+      splitChar = '.';
+    } else if (multiContent == 'diff_folder') {
+      splitChar = '/';
+    }
+    entries.forEach(e => {
+      const entryPath = e.path.split(splitChar);
+      const locale = entryPath.splice(-2, 1)[0];
+      !path && (path = entryPath.join(splitChar));
+      data[locale] = e.data;
+    });
+    return { ...entries[0], path, raw: '', data };
   }
 
   unpublishedEntry(collection: Collection, slug: string) {
     return this.implementation!.unpublishedEntry!(collection.get('name') as string, slug)
       .then(loadedEntry => {
-        const entry = createEntry(collection.get('name'), loadedEntry.slug, loadedEntry.file.path, {
-          raw: loadedEntry.data,
-          isModification: loadedEntry.isModification,
-          metaData: loadedEntry.metaData,
-          mediaFiles: loadedEntry.mediaFiles,
+        const loadedEntries = Array.isArray(loadedEntry) ? loadedEntry : [loadedEntry];
+        return loadedEntries.map(loadedEntry => {
+          const entry = createEntry(
+            collection.get('name'),
+            loadedEntry.slug,
+            loadedEntry.file.path,
+            {
+              raw: loadedEntry.data,
+              isModification: loadedEntry.isModification,
+              metaData: loadedEntry.metaData,
+              mediaFiles: loadedEntry.mediaFiles,
+              multiContentKey: loadedEntry.multiContentKey,
+            },
+          );
+          return this.entryWithFormat(collection)(entry);
         });
-        return entry;
       })
-      .then(this.entryWithFormat(collection));
+      .then(entries => {
+        if (entries.length === 1) {
+          return entries[0];
+        }
+
+        const multiContent = collection.get('multi_content');
+        return this.combineEntries(entries, multiContent);
+      });
   }
 
   /**
@@ -677,6 +802,7 @@ export class Backend {
     status,
   }: PersistArgs) {
     const newEntry = entryDraft.getIn(['entry', 'newRecord']) || false;
+    const hasMultipleContent = collection.get('multi_content') && config.get('locales');
 
     const parsedData = {
       title: entryDraft.getIn(['entry', 'data', 'title'], 'No Title') as string,
@@ -729,14 +855,46 @@ export class Backend {
       };
     }
 
+    let entriesObj = [entryObj];
+    if (hasMultipleContent) {
+      const multiContent = collection.get('multi_content');
+      const extension = selectFolderEntryExtension(collection);
+      const data = entryDraft.getIn(['entry', 'data']).toJS();
+      const locales = Object.keys(data);
+      entriesObj = [];
+      if (multiContent === 'same_folder') {
+        locales.forEach(l => {
+          entriesObj.push({
+            path: entryObj.path.replace(extension, `${l}.${extension}`),
+            slug: entryObj.slug,
+            raw: this.entryToRaw(
+              collection,
+              entryDraft.get('entry').set('data', entryDraft.getIn(['entry', 'data', l])),
+            ),
+          });
+        });
+      } else if (multiContent === 'diff_folder') {
+        locales.forEach(l => {
+          entriesObj.push({
+            path: entryObj.path.replace(`${entryObj.slug}`, `${l}/${entryObj.slug}`),
+            slug: entryObj.slug,
+            raw: this.entryToRaw(
+              collection,
+              entryDraft.get('entry').set('data', entryDraft.getIn(['entry', 'data', l])),
+            ),
+          });
+        });
+      }
+    }
+
     const user = (await this.currentUser()) as User;
     const commitMessage = commitMessageFormatter(
       newEntry ? 'create' : 'update',
       config,
       {
         collection,
-        slug: entryObj.slug,
-        path: entryObj.path,
+        slug: entriesObj[0].slug,
+        path: entriesObj[0].path,
         authorLogin: user.login,
         authorName: user.name,
       },
@@ -761,7 +919,7 @@ export class Backend {
       await this.invokePrePublishEvent(entryDraft.get('entry'));
     }
 
-    await this.implementation.persistEntry(entryObj, assetProxies, opts);
+    await this.implementation.persistEntry(entriesObj, assetProxies, opts);
 
     if (!useWorkflow) {
       await this.invokePostPublishEvent(entryDraft.get('entry'));
@@ -808,8 +966,9 @@ export class Backend {
     return this.implementation.persistMedia(file, options);
   }
 
-  async deleteEntry(state: State, collection: Collection, slug: string) {
+  async deleteEntry(state: State, collection: Collection, slug: string, locales, multiContent) {
     const path = selectEntryPath(collection, slug) as string;
+    const extension = selectFolderEntryExtension(collection) as string;
 
     if (!selectAllowDeletion(collection)) {
       throw new Error('Not allowed to delete entries in this collection');
@@ -830,9 +989,28 @@ export class Backend {
       user.useOpenAuthoring,
     );
 
+    let result;
     const entry = selectEntry(state.entries, collection.get('name'), slug);
     await this.invokePreUnpublishEvent(entry);
-    const result = await this.implementation.deleteFile(path, commitMessage);
+    if (locales && multiContent === 'same_folder') {
+      result = await Promise.all(
+        locales.map(l =>
+          this.implementation
+            .deleteFile(path.replace(extension, `${l}.${extension}`))
+            .catch(() => undefined),
+        ),
+      );
+    } else if (locales && multiContent === 'diff_folder') {
+      result = await Promise.all(
+        locales.map(l =>
+          this.implementation
+            .deleteFile(path.replace(`${slug}`, `${l}/${slug}`))
+            .catch(() => undefined),
+        ),
+      );
+    } else {
+      result = await this.implementation.deleteFile(path, commitMessage);
+    }
     await this.invokePostUnpublishEvent(entry);
     return result;
   }

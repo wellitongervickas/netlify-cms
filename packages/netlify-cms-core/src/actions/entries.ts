@@ -337,10 +337,12 @@ export function loadEntry(collection: Collection, slug: string) {
   return async (dispatch: ThunkDispatch<State, {}, AnyAction>, getState: () => State) => {
     const state = getState();
     const backend = currentBackend(state.config);
+    const locales = state.config.get('locales');
+    const multiContent = collection.get('multi_content');
     await waitForMediaLibraryToLoad(dispatch, getState());
     dispatch(entryLoading(collection, slug));
     return backend
-      .getEntry(getState(), collection, slug)
+      .getEntry(getState(), collection, slug, locales, multiContent)
       .then((loadedEntry: EntryValue) => {
         return dispatch(entryLoaded(collection, loadedEntry));
       })
@@ -382,14 +384,20 @@ export function loadEntries(collection: Collection, page = 0) {
     }
     const state = getState();
     const backend = currentBackend(state.config);
+    const locales = state.config.get('locales');
+    const multiContent = collection.get('multi_content');
     const integration = selectIntegration(state, collection.get('name'), 'listEntries');
     const provider = integration
       ? getIntegrationProvider(state.integrations, backend.getToken, integration)
       : backend;
     const append = !!(page && !isNaN(page) && page > 0);
+    const listMethod =
+      locales && ['same_folder', 'diff_folder'].includes(multiContent)
+        ? provider.listAllMultipleEntires
+        : provider.listEntries;
     dispatch(entriesLoading(collection));
-    provider
-      .listEntries(collection, page)
+    listMethod
+      .call(backend, collection, page, locales)
       .then((response: { cursor: typeof Cursor }) => ({
         ...response,
 
@@ -705,10 +713,12 @@ export function deleteEntry(collection: Collection, slug: string) {
   return (dispatch: ThunkDispatch<State, {}, AnyAction>, getState: () => State) => {
     const state = getState();
     const backend = currentBackend(state.config);
+    const locales = state.config.get('locales');
+    const multiContent = collection.get('multi_content') === 'multiple_files';
 
     dispatch(entryDeleting(collection, slug));
     return backend
-      .deleteEntry(state, collection, slug)
+      .deleteEntry(state, collection, slug, locales, multiContent)
       .then(() => {
         return dispatch(entryDeleted(collection, slug));
       })
