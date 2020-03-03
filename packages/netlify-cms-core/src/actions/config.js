@@ -56,24 +56,20 @@ export function applyDefaults(config) {
         map.setIn(['slug', 'sanitize_replacement'], '-');
       }
 
-      const langs = map.get('locales');
+      const locales = map.get('locales');
       // Strip leading slash from collection folders and files
       map.set(
         'collections',
         map.get('collections').map(collection => {
           const folder = collection.get('folder');
           if (folder) {
-            if (collection.has('media_folder') && !collection.has('public_folder')) {
-              collection = collection.set('public_folder', collection.get('media_folder'));
-            }
-
             const fields = collection.get('fields');
             const identifier_field = selectIdentifier(collection);
-            if (langs && fields && collection.get('multi_content')) {
-              // add languague fields
+            if (locales && fields && collection.get('multi_content')) {
+              // add locale fields
               collection = collection.set(
                 'fields',
-                fromJS(addLanguageFields(fields.toJS(), langs.toJS())),
+                fromJS(addLocaleFields(fields.toJS(), locales.toJS())),
               );
 
               // remove path for same or different folder config
@@ -83,13 +79,17 @@ export function applyDefaults(config) {
               // add identifier config
               collection = collection.set(
                 'identifier_field',
-                `${langs.first()}.${identifier_field}`,
+                `${locales.first()}.${identifier_field}`,
               );
             }
 
             if (collection.has('path') && !collection.has('media_folder')) {
               // default value for media folder when using the path config
               collection = collection.set('media_folder', '');
+            }
+
+            if (collection.has('media_folder') && !collection.has('public_folder')) {
+              collection = collection.set('public_folder', collection.get('media_folder'));
             }
 
             return collection.set('folder', trimStart(folder, '/'));
@@ -112,8 +112,8 @@ export function applyDefaults(config) {
     });
 }
 
-export function addLanguageFields(fields, langs) {
-  return langs.reduce((acc, item) => {
+export function addLocaleFields(fields, locales) {
+  return locales.reduce((acc, item) => {
     return [
       ...acc,
       {

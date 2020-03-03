@@ -165,6 +165,7 @@ describe('github backend implementation', () => {
   describe('unpublishedEntry', () => {
     const generateContentKey = jest.fn();
     const readUnpublishedBranchFile = jest.fn();
+    const loadEntryMediaFiles = jest.fn();
 
     const mockAPI = {
       generateContentKey,
@@ -174,14 +175,13 @@ describe('github backend implementation', () => {
     it('should return unpublished entry', async () => {
       const gitHubImplementation = new GitHubImplementation(config);
       gitHubImplementation.api = mockAPI;
-      gitHubImplementation.loadEntryMediaFiles = jest
-        .fn()
-        .mockResolvedValue([{ path: 'image.png', id: 'sha' }]);
 
       generateContentKey.mockReturnValue('contentKey');
 
       const data = {
-        fileData: 'fileData',
+        slug: 'slug',
+        file: { path: 'entry-path', id: null },
+        data: 'fileData',
         isModification: true,
         metaData: {
           branch: 'branch',
@@ -189,29 +189,20 @@ describe('github backend implementation', () => {
             entry: { path: 'entry-path', mediaFiles: [{ path: 'image.png', id: 'sha' }] },
           },
         },
+        mediaFiles: [{ path: 'image.png', id: 'sha' }],
       };
       readUnpublishedBranchFile.mockResolvedValue(data);
 
       const collection = 'posts';
-      await expect(gitHubImplementation.unpublishedEntry(collection, 'slug')).resolves.toEqual({
-        slug: 'slug',
-        file: { path: 'entry-path', id: null },
-        data: 'fileData',
-        metaData: data.metaData,
-        mediaFiles: [{ path: 'image.png', id: 'sha' }],
-        isModification: true,
-      });
+      await expect(
+        gitHubImplementation.unpublishedEntry(collection, 'slug', { loadEntryMediaFiles }),
+      );
 
       expect(generateContentKey).toHaveBeenCalledTimes(1);
       expect(generateContentKey).toHaveBeenCalledWith('posts', 'slug');
 
       expect(readUnpublishedBranchFile).toHaveBeenCalledTimes(1);
-      expect(readUnpublishedBranchFile).toHaveBeenCalledWith('contentKey');
-
-      expect(gitHubImplementation.loadEntryMediaFiles).toHaveBeenCalledTimes(1);
-      expect(gitHubImplementation.loadEntryMediaFiles).toHaveBeenCalledWith('branch', [
-        { path: 'image.png', id: 'sha' },
-      ]);
+      expect(readUnpublishedBranchFile).toHaveBeenCalledWith('contentKey', loadEntryMediaFiles);
     });
   });
 });

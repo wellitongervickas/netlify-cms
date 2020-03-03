@@ -52,7 +52,7 @@ describe('test backend implementation', () => {
       const backend = new TestBackend();
 
       const entry = { path: 'posts/some-post.md', raw: 'content', slug: 'some-post.md' };
-      await backend.persistEntry(entry, [], { newEntry: true });
+      await backend.persistEntry([entry], [], { newEntry: true });
 
       expect(window.repoFiles).toEqual({
         posts: {
@@ -80,7 +80,7 @@ describe('test backend implementation', () => {
       const backend = new TestBackend();
 
       const entry = { path: 'posts/new-post.md', raw: 'content', slug: 'new-post.md' };
-      await backend.persistEntry(entry, [], { newEntry: true });
+      await backend.persistEntry([entry], [], { newEntry: true });
 
       expect(window.repoFiles).toEqual({
         pages: {
@@ -107,7 +107,7 @@ describe('test backend implementation', () => {
       const slug = 'dir1/dir2/some-post.md';
       const path = `posts/${slug}`;
       const entry = { path, raw: 'content', slug };
-      await backend.persistEntry(entry, [], { newEntry: true });
+      await backend.persistEntry([entry], [], { newEntry: true });
 
       expect(window.repoFiles).toEqual({
         posts: {
@@ -141,7 +141,7 @@ describe('test backend implementation', () => {
       const slug = 'dir1/dir2/some-post.md';
       const path = `posts/${slug}`;
       const entry = { path, raw: 'new content', slug };
-      await backend.persistEntry(entry, [], { newEntry: false });
+      await backend.persistEntry([entry], [], { newEntry: false });
 
       expect(window.repoFiles).toEqual({
         posts: {

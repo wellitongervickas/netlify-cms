@@ -454,4 +454,125 @@ describe('Backend', () => {
       );
     });
   });
+
+  describe('combineMultiContentEntries', () => {
+    const implementation = {
+      init: jest.fn(() => implementation),
+    };
+    const config = Map({});
+    const backend = new Backend(implementation, { config, backendName: 'github' });
+
+    it('should combine mutiple content same folder entries', () => {
+      const entries = [
+        { path: 'posts/post.en.md', data: { title: 'Title en', content: 'Content en' } },
+        { path: 'posts/post.fr.md', data: { title: 'Title fr', content: 'Content fr' } },
+      ];
+      const collection = fromJS({ multi_content: 'same_folder' });
+
+      expect(backend.combineMultiContentEntries(entries, collection)).toEqual([
+        {
+          path: 'posts/post.md',
+          raw: '',
+          data: {
+            en: { title: 'Title en', content: 'Content en' },
+            fr: { title: 'Title fr', content: 'Content fr' },
+          },
+        },
+      ]);
+    });
+
+    it('should combine mutiple content different folder entries', () => {
+      const entries = [
+        { path: 'posts/en/post.md', data: { title: 'Title en', content: 'Content en' } },
+        { path: 'posts/fr/post.md', data: { title: 'Title fr', content: 'Content fr' } },
+      ];
+      const collection = fromJS({ multi_content: 'diff_folder' });
+
+      expect(backend.combineMultiContentEntries(entries, collection)).toEqual([
+        {
+          path: 'posts/post.md',
+          raw: '',
+          data: {
+            en: { title: 'Title en', content: 'Content en' },
+            fr: { title: 'Title fr', content: 'Content fr' },
+          },
+        },
+      ]);
+    });
+  });
+
+  describe('listAllMultipleEntires', () => {
+    const implementation = {
+      init: jest.fn(() => implementation),
+    };
+    const config = Map({});
+    const backend = new Backend(implementation, { config, backendName: 'github' });
+    const locales = fromJS(['en', 'fr']);
+
+    it('should combine mutiple content same folder entries', async () => {
+      const entries = [
+        {
+          slug: 'post.en',
+          path: 'posts/post.en.md',
+          data: { title: 'Title en', content: 'Content en' },
+        },
+        {
+          slug: 'post.fr',
+          path: 'posts/post.fr.md',
+          data: { title: 'Title fr', content: 'Content fr' },
+        },
+      ];
+      const collection = fromJS({ multi_content: 'same_folder' });
+
+      backend.listAllEntries = jest.fn().mockResolvedValue(entries);
+
+      await expect(backend.listAllMultipleEntires(collection, '', locales)).resolves.toEqual({
+        entries: [
+          {
+            slug: 'post',
+            path: 'posts/post.md',
+            raw: '',
+            data: {
+              en: { title: 'Title en', content: 'Content en' },
+              fr: { title: 'Title fr', content: 'Content fr' },
+            },
+            multiContentKey: 'posts/post',
+          },
+        ],
+      });
+    });
+
+    it('should combine mutiple content different folder entries', async () => {
+      const entries = [
+        {
+          slug: 'en/post',
+          path: 'posts/en/post.md',
+          data: { title: 'Title en', content: 'Content en' },
+        },
+        {
+          slug: 'fr/post',
+          path: 'posts/fr/post.md',
+          data: { title: 'Title fr', content: 'Content fr' },
+        },
+      ];
+      const collection = fromJS({ multi_content: 'diff_folder' });
+
+      backend.listAllEntries = jest.fn().mockResolvedValue(entries);
+
+      await expect(backend.listAllMultipleEntires(collection, '', locales)).resolves.toEqual({
+        entries: [
+          {
+            slug: 'post',
+            path: 'posts/post.md',
+            raw: '',
+            data: {
+              en: { title: 'Title en', content: 'Content en' },
+              fr: { title: 'Title fr', content: 'Content fr' },
+            },
+            multiContentKey: 'posts/post.md',
+          },
+        ],
+      });
+    });
+  });
 });

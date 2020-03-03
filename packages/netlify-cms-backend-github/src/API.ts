@@ -528,10 +528,7 @@ export default class API {
     let entries = diffs.filter(d => d.patch && !d.filename.endsWith('.svg'));
     let mediaFiles = difference(diffs, entries);
     entries = entries.map(e => ({ path: e.filename, newFile: e.status === 'added' }));
-    mediaFiles = mediaFiles.map(({ filename: path, sha: id }) => ({
-      path,
-      id,
-    }));
+    mediaFiles = mediaFiles.map(e => ({ path: e.filename, id: e.sha }));
     const label = pullRequest.labels.find(l => isCMSLabel(l.name)) as { name: string };
     const status = labelToStatus(label.name);
     return { branch, collection, slug, status, entries, mediaFiles, pullRequest };
