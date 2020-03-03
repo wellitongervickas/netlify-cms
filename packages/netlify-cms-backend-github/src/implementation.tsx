@@ -354,11 +354,11 @@ export default class GitHub implements Implementation {
     );
   }
 
-  persistEntry(entry: Entry, mediaFiles: AssetProxy[] = [], options: PersistOptions) {
+  persistEntry(entries: Entry[], mediaFiles: AssetProxy[] = [], options: PersistOptions) {
     // persistEntry is a transactional operation
     return runWithLock(
       this.lock,
-      () => this.api!.persistFiles(entry, mediaFiles, options),
+      () => this.api!.persistFiles(entries, mediaFiles, options),
       'Failed to acquire persist entry lock',
     );
   }
@@ -433,20 +433,7 @@ export default class GitHub implements Implementation {
     } = {},
   ) {
     const contentKey = this.api!.generateContentKey(collection, slug);
-    const data = await this.api!.readUnpublishedBranchFile(contentKey);
-    const files = data.metaData.objects.entry.mediaFiles || [];
-    const mediaFiles = await loadEntryMediaFiles(
-      data.metaData.branch,
-      files.map(({ id, path }) => ({ id, path })),
-    );
-    return {
-      slug,
-      file: { path: data.metaData.objects.entry.path, id: null },
-      data: data.fileData as string,
-      metaData: data.metaData,
-      mediaFiles,
-      isModification: data.isModification,
-    };
+    return await this.api!.readUnpublishedBranchFile(contentKey, loadEntryMediaFiles);
   }
 
   async getDeployPreview(collection: string, slug: string) {
