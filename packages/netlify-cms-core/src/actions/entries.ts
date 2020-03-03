@@ -11,6 +11,7 @@ import { Cursor, ImplementationMediaFile } from 'netlify-cms-lib-util';
 import { createEntry, EntryValue } from '../valueObjects/Entry';
 import AssetProxy, { createAssetProxy } from '../valueObjects/AssetProxy';
 import ValidationErrorTypes from '../constants/validationErrorTypes';
+import { DIFF_FILE_TYPES } from 'Constants/multiContentTypes';
 import { addAssets, getAsset } from './media';
 import { Collection, EntryMap, MediaFile, State, EntryFields, EntryField } from '../types/redux';
 import { ThunkDispatch } from 'redux-thunk';
@@ -337,12 +338,10 @@ export function loadEntry(collection: Collection, slug: string) {
   return async (dispatch: ThunkDispatch<State, {}, AnyAction>, getState: () => State) => {
     const state = getState();
     const backend = currentBackend(state.config);
-    const locales = state.config.get('locales');
-    const multiContent = collection.get('multi_content');
     await waitForMediaLibraryToLoad(dispatch, getState());
     dispatch(entryLoading(collection, slug));
     return backend
-      .getEntry(getState(), collection, slug, locales, multiContent)
+      .getEntry(getState(), collection, slug)
       .then((loadedEntry: EntryValue) => {
         return dispatch(entryLoaded(collection, loadedEntry));
       })
@@ -392,7 +391,7 @@ export function loadEntries(collection: Collection, page = 0) {
       : backend;
     const append = !!(page && !isNaN(page) && page > 0);
     const listMethod =
-      locales && ['same_folder', 'diff_folder'].includes(multiContent)
+      locales && DIFF_FILE_TYPES.includes(multiContent)
         ? provider.listAllMultipleEntires
         : provider.listEntries;
     dispatch(entriesLoading(collection));
@@ -714,7 +713,7 @@ export function deleteEntry(collection: Collection, slug: string) {
     const state = getState();
     const backend = currentBackend(state.config);
     const locales = state.config.get('locales');
-    const multiContent = collection.get('multi_content') === 'multiple_files';
+    const multiContent = DIFF_FILE_TYPES.includes(collection.get('multi_content'));
 
     dispatch(entryDeleting(collection, slug));
     return backend

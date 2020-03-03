@@ -4,6 +4,7 @@ import { trimStart, get, isPlainObject } from 'lodash';
 import { authenticateUser } from 'Actions/auth';
 import * as publishModes from 'Constants/publishModes';
 import { validateConfig } from 'Constants/configSchema';
+import { DIFF_FILE_TYPES } from 'Constants/multiContentTypes';
 import { selectIdentifier } from 'Reducers/collections';
 
 export const CONFIG_REQUEST = 'CONFIG_REQUEST';
@@ -75,8 +76,8 @@ export function applyDefaults(config) {
                 fromJS(addLanguageFields(fields.toJS(), langs.toJS())),
               );
 
-              // remove path for different folder config
-              if (collection.get('multi_content') === 'diff_folder') {
+              // remove path for same or different folder config
+              if (DIFF_FILE_TYPES.includes(collection.get('multi_content'))) {
                 collection = collection.delete('path');
               }
               // add identifier config
@@ -113,7 +114,16 @@ export function applyDefaults(config) {
 
 export function addLanguageFields(fields, langs) {
   return langs.reduce((acc, item) => {
-    return [...acc, { label: item, name: item, widget: 'object', fields, multiContent: true }];
+    return [
+      ...acc,
+      {
+        label: item,
+        name: item,
+        widget: 'object',
+        fields,
+        multiContentId: Symbol.for('multiContentId'),
+      },
+    ];
   }, []);
 }
 

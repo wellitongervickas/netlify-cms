@@ -3,6 +3,7 @@ import ajvErrors from 'ajv-errors';
 import locale from 'locale-codes';
 import { uniq } from 'lodash';
 import { formatExtensions, frontmatterFormats, extensionFormatters } from 'Formats/formats';
+import { SINGLE_FILE, SAME_FOLDER, DIFF_FOLDER } from 'Constants/multiContentTypes';
 
 /**
  * valid locales.
@@ -145,7 +146,7 @@ const getConfigSchema = () => ({
               type: 'string',
             },
           },
-          multi_content: { type: 'string', enum: ['single_file', 'same_folder', 'diff_folder'] },
+          multi_content: { type: 'string', enum: [SINGLE_FILE, SAME_FOLDER, DIFF_FOLDER] },
           fields: fieldsConfig,
         },
         required: ['name', 'label'],

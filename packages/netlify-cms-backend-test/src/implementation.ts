@@ -209,11 +209,8 @@ export default class TestBackend implements Implementation {
     return Promise.resolve();
   }
 
-  async persistEntry(
-    { path, raw, slug }: Entry,
-    assetProxies: AssetProxy[],
-    options: PersistOptions,
-  ) {
+  async persistEntry(entries: Entry[], assetProxies: AssetProxy[], options: PersistOptions) {
+    const { path, raw, slug } = entries[0];
     if (options.useWorkflow) {
       const unpubStore = window.repoFilesUnpublished;
 
@@ -288,7 +285,7 @@ export default class TestBackend implements Implementation {
     };
     unpubStore.splice(unpubEntryIndex, 1);
 
-    await this.persistEntry(entry, unpubEntry.mediaFiles!, { commitMessage: '' });
+    await this.persistEntry([entry], unpubEntry.mediaFiles!, { commitMessage: '' });
   }
 
   getMedia() {
