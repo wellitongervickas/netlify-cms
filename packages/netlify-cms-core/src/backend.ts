@@ -647,7 +647,7 @@ export class Backend {
           return acc;
         }, [] as EntryValue[]);
 
-        const multiContentEntries = formattedEntries.filter(e => e.multiContentKey);
+        const multiContentEntries = formattedEntries.filter(e => e.multiContent);
         const combinedMultiEntries = this.combineMultiContentEntries(multiContentEntries);
         return {
           pagination: 0,
@@ -705,7 +705,7 @@ export class Backend {
         });
       })
       .then(entries => {
-        if (entries.length === 1) {
+        if (entries.length === 1 && !collection.get('multi_content')) {
           return entries[0];
         }
 

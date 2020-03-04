@@ -42,6 +42,8 @@ export function createEntry(collection: string, slug = '', path = '', options: O
     mediaFiles: options.mediaFiles || [],
     ...(options.multiContentKey && {
       multiContentKey: options.multiContentKey,
+    }),
+    ...(options.multiContent && {
       multiContent: options.multiContent,
     }),
   };
