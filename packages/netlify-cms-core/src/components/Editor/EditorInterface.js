@@ -93,7 +93,7 @@ const Editor = styled.div`
 
 const PreviewPaneContainer = styled.div`
   height: 100%;
-  overflow-y: auto;
+  overflow-y: ${props => (props.overFlow ? 'auto' : 'hidden')};
   pointer-events: ${props => (props.blockEntry ? 'none' : 'auto')};
 `;
 
@@ -150,7 +150,7 @@ class EditorInterface extends Component {
   };
 
   handleRefValidation = () => {
-    [this.controlPaneRef, this.controlPaneRef2].filter(Boolean).forEach(c => c.validate());
+    this.controlPaneRef.validate();
   };
 
   render() {
@@ -182,12 +182,12 @@ class EditorInterface extends Component {
       loadDeployPreview,
       deployPreview,
       draftKey,
-      locales,
     } = this.props;
 
     const { previewVisible, scrollSyncEnabled, showEventBlocker } = this.state;
     const collectionPreviewEnabled = collection.getIn(['editor', 'preview'], true);
-    const multiContent = collection.get('multi_content') && locales;
+    const multiContent = collection.get('multi_content');
+    const locales = this.props.collection.get('locales');
     const editorProps = {
       collection,
       entry,
@@ -196,26 +196,22 @@ class EditorInterface extends Component {
       fieldsErrors,
       onChange,
       onValidate,
-      locales,
     };
 
     const editor = (
-      <ControlPaneContainer blockEntry={showEventBlocker}>
+      <ControlPaneContainer overFlow blockEntry={showEventBlocker}>
         <EditorControlPane
           {...editorProps}
           ref={c => (this.controlPaneRef = c)}
+          defaultEditor
           locale={locales && locales.first()}
         />
       </ControlPaneContainer>
     );
 
     const editor2 = (
-      <ControlPaneContainer blockEntry={showEventBlocker}>
-        <EditorControlPane
-          {...editorProps}
-          ref={c => (this.controlPaneRef2 = c)}
-          locale={locales && locales.last()}
-        />
+      <ControlPaneContainer overFlow={!this.state.scrollSyncEnabled} blockEntry={showEventBlocker}>
+        <EditorControlPane {...editorProps} locale={locales && locales.last()} />
       </ControlPaneContainer>
     );
 

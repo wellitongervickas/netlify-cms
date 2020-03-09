@@ -317,7 +317,13 @@ export default class GitLab implements Implementation {
     } = {},
   ) {
     const contentKey = generateContentKey(collection, slug);
-    return await this.api!.readUnpublishedBranchFile(contentKey, loadEntryMediaFiles);
+    const entries = await this.api!.readUnpublishedBranchFile(contentKey);
+    const mediaFiles = await loadEntryMediaFiles(
+      entries[0].metaData.branch,
+      entries[0].metaData.objects.entry.mediaFiles,
+    );
+
+    return entries.map(entry => ({ ...entry, mediaFiles }));
   }
 
   async updateUnpublishedEntryStatus(collection: string, slug: string, newStatus: string) {

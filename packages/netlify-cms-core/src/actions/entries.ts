@@ -385,13 +385,14 @@ export function loadEntries(collection: Collection, page = 0) {
     const backend = currentBackend(state.config);
     const locales = state.config.get('locales');
     const multiContent = collection.get('multi_content');
+    const i18nStructure = collection.get('i18n_structure');
     const integration = selectIntegration(state, collection.get('name'), 'listEntries');
     const provider = integration
       ? getIntegrationProvider(state.integrations, backend.getToken, integration)
       : backend;
     const append = !!(page && !isNaN(page) && page > 0);
     const listMethod =
-      locales && DIFF_FILE_TYPES.includes(multiContent)
+      multiContent && DIFF_FILE_TYPES.includes(i18nStructure)
         ? provider.listAllMultipleEntires
         : provider.listEntries;
     dispatch(entriesLoading(collection));

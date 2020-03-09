@@ -433,7 +433,14 @@ export default class GitHub implements Implementation {
     } = {},
   ) {
     const contentKey = this.api!.generateContentKey(collection, slug);
-    return await this.api!.readUnpublishedBranchFile(contentKey, loadEntryMediaFiles);
+    const entries = await this.api!.readUnpublishedBranchFile(contentKey);
+    const files = entries[0].metaData.objects.entry.mediaFiles || [];
+    const mediaFiles = await loadEntryMediaFiles(
+      entries[0].metaData.branch,
+      files.map(({ id, path }) => ({ id, path })),
+    );
+
+    return entries.map(entry => ({ ...entry, mediaFiles }));
   }
 
   async getDeployPreview(collection: string, slug: string) {

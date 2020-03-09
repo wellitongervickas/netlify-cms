@@ -561,28 +561,11 @@ export default class API {
     return { branch, collection, slug, status, entries, mediaFiles };
   }
 
-  async readUnpublishedBranchFile(contentKey: string, loadEntryMediaFiles) {
+  async readUnpublishedBranchFile(contentKey: string) {
     const { branch, collection, slug, status, entries, mediaFiles } = await this.retrieveMetadata(
       contentKey,
     );
 
-    if (entries.length === 1) {
-      const { path, newFile } = entries[0];
-      const fileData = (await this.readFile(path, null, { branch })) as string;
-      const loadedMediaFiles =
-        loadEntryMediaFiles && (await loadEntryMediaFiles(branch, mediaFiles));
-
-      return {
-        slug,
-        file: { path, id: null },
-        metaData: { branch, collection, objects: { entry: { path, mediaFiles } }, status },
-        data: fileData,
-        isModification: !newFile,
-        ...(loadedMediaFiles && { mediaFiles: loadedMediaFiles }),
-      };
-    }
-
-    const loadedMediaFiles = loadEntryMediaFiles && (await loadEntryMediaFiles(branch, mediaFiles));
     return await Promise.all(
       entries.map(async file => {
         const fileData = await this.readFile(file.path, null, { branch });
@@ -597,8 +580,7 @@ export default class API {
           },
           data: fileData,
           isModification: !file.newFile,
-          multiContentKey: contentKey,
-          ...(loadedMediaFiles && { mediaFiles: loadedMediaFiles }),
+          contentKey,
         };
       }),
     );

@@ -1,10 +1,10 @@
 import yaml from 'js-yaml';
-import { Map, fromJS } from 'immutable';
-import { trimStart, get, isPlainObject } from 'lodash';
+import { Map, List, fromJS } from 'immutable';
+import { trimStart, get, isPlainObject, uniq, isEmpty } from 'lodash';
 import { authenticateUser } from 'Actions/auth';
 import * as publishModes from 'Constants/publishModes';
 import { validateConfig } from 'Constants/configSchema';
-import { DIFF_FILE_TYPES } from 'Constants/multiContentTypes';
+import { NON_TRANSLATABLE_FIELDS } from 'Constants/multiContentTypes';
 import { selectIdentifier } from 'Reducers/collections';
 
 export const CONFIG_REQUEST = 'CONFIG_REQUEST';
@@ -56,33 +56,14 @@ export function applyDefaults(config) {
         map.setIn(['slug', 'sanitize_replacement'], '-');
       }
 
-      const locales = map.get('locales');
+      const backend = map.getIn(['backend', 'name']);
+      let locales = map.get('locales', List()).toJS();
       // Strip leading slash from collection folders and files
       map.set(
         'collections',
         map.get('collections').map(collection => {
           const folder = collection.get('folder');
           if (folder) {
-            const fields = collection.get('fields');
-            const identifier_field = selectIdentifier(collection);
-            if (locales && fields && collection.get('multi_content')) {
-              // add locale fields
-              collection = collection.set(
-                'fields',
-                fromJS(addLocaleFields(fields.toJS(), locales.toJS())),
-              );
-
-              // remove path for same or different folder config
-              if (DIFF_FILE_TYPES.includes(collection.get('multi_content'))) {
-                collection = collection.delete('path');
-              }
-              // add identifier config
-              collection = collection.set(
-                'identifier_field',
-                `${locales.first()}.${identifier_field}`,
-              );
-            }
-
             if (collection.has('path') && !collection.has('media_folder')) {
               // default value for media folder when using the path config
               collection = collection.set('media_folder', '');
@@ -92,14 +73,36 @@ export function applyDefaults(config) {
               collection = collection.set('public_folder', collection.get('media_folder'));
             }
 
+            const fields = collection.get('fields');
+            const identifier_field = selectIdentifier(collection);
+            if (!isEmpty(locales) && fields && collection.get('i18n_structure')) {
+              if (!collection.get('default_locale')) {
+                collection = collection.set('default_locale', locales[0]);
+              } else {
+                locales = uniq([collection.get('default_locale'), ...locales]);
+              }
+
+              // add identifier config
+              collection = collection.set('identifier_field', `${locales[0]}.${identifier_field}`);
+
+              collection = collection.set('locales', fromJS(locales));
+
+              // add locale fields
+              collection = collection.set('fields', addLocaleFields(fields, locales));
+
+              collection = collection.set('multi_content', true);
+
+              // for test-repo backend single file mode should suffice
+              if (backend === 'test-repo') {
+                collection = collection.set('i18n_structure', 'single_file');
+              }
+            }
+
             return collection.set('folder', trimStart(folder, '/'));
           }
 
           const files = collection.get('files');
           if (files) {
-            // remove multi_content config if set
-            collection = collection.delete('multi_content');
-
             return collection.set(
               'files',
               files.map(file => {
@@ -113,18 +116,41 @@ export function applyDefaults(config) {
 }
 
 export function addLocaleFields(fields, locales) {
+  const defaultLocale = locales[0];
+  const stripedFields = stripNonTranslatableFields(fields);
   return locales.reduce((acc, item) => {
-    return [
-      ...acc,
-      {
+    const selectedFields = item === defaultLocale ? fields : stripedFields;
+    return acc.push(
+      fromJS({
         label: item,
         name: item,
         widget: 'object',
-        fields,
+        fields: selectedFields,
         multiContentId: Symbol.for('multiContentId'),
-      },
-    ];
-  }, []);
+      }),
+    );
+  }, List());
+}
+
+function stripNonTranslatableFields(fields) {
+  return fields.reduce((acc, item) => {
+    const subfields = item.get('field') || item.get('fields');
+    const widget = item.get('widget');
+
+    if (List.isList(subfields)) {
+      return acc.push(item.set('fields', stripNonTranslatableFields(subfields)));
+    }
+
+    if (Map.isMap(subfields)) {
+      return acc.push(item.set('field', stripNonTranslatableFields([subfields])));
+    }
+
+    if (!NON_TRANSLATABLE_FIELDS.includes(widget)) {
+      return acc.push(item);
+    }
+
+    return acc;
+  }, List());
 }
 
 function mergePreloadedConfig(preloadedConfig, loadedConfig) {

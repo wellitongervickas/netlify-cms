@@ -24,8 +24,8 @@ export interface EntryValue {
   metaData: unknown | null;
   isModification: boolean | null;
   mediaFiles: MediaFile[];
-  multiContent?: string;
-  multiContentKey?: string;
+  i18nStructure?: string;
+  contentKey?: string;
 }
 
 export function createEntry(collection: string, slug = '', path = '', options: Options = {}) {
@@ -40,11 +40,11 @@ export function createEntry(collection: string, slug = '', path = '', options: O
     metaData: options.metaData || null,
     isModification: isBoolean(options.isModification) ? options.isModification : null,
     mediaFiles: options.mediaFiles || [],
-    ...(options.multiContentKey && {
-      multiContentKey: options.multiContentKey,
+    ...(options.contentKey && {
+      contentKey: options.contentKey,
     }),
-    ...(options.multiContent && {
-      multiContent: options.multiContent,
+    ...(options.i18nStructure && {
+      i18nStructure: options.i18nStructure,
     }),
   };
 

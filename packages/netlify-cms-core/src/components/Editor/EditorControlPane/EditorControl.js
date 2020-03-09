@@ -174,7 +174,6 @@ class EditorControl extends React.Component {
       isSelected,
       isEditorComponent,
       isNewEditorComponent,
-      locales,
       selectedLocale,
       onLocaleChange,
       t,
@@ -189,6 +188,7 @@ class EditorControl extends React.Component {
     const metadata = fieldsMetaData && fieldsMetaData.get(fieldName);
     const errors = fieldsErrors && fieldsErrors.get(this.uniqueFieldId);
     const multiContentWidgetId = field.get('multiContentId') === Symbol.for('multiContentId');
+    const locales = this.props.collection.get('locales');
     const label = (
       <>
         {locales && multiContentWidgetId ? (
