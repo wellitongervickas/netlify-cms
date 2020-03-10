@@ -610,7 +610,7 @@ export default class API {
     }
   }
 
-  async readUnpublishedBranchFile(contentKey: string) {
+  async readUnpublishedBranchEntries(contentKey: string) {
     try {
       const { branch, collection, slug, status, entries, mediaFiles } = await this.retrieveMetadata(
         contentKey,

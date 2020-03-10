@@ -159,9 +159,15 @@ type ReadFile = (
   id: string | null | undefined,
   options: { parseText: boolean },
 ) => Promise<string | Blob>;
-type ReadUnpublishedFile = (
+type ReadUnpublishedEntries = (
   key: string,
-) => Promise<{ metaData: Metadata; fileData: string; isModification: boolean; slug: string }>;
+) => Promise<{
+  metaData: Metadata;
+  data: string;
+  isModification: boolean;
+  slug: string;
+  contentKey: string;
+}>;
 
 const fetchFiles = async (files: ImplementationFile[], readFile: ReadFile, apiName: string) => {
   const sem = semaphore(MAX_CONCURRENT_DOWNLOADS);
@@ -191,7 +197,7 @@ const fetchFiles = async (files: ImplementationFile[], readFile: ReadFile, apiNa
 
 const fetchUnpublishedFiles = async (
   keys: string[],
-  readUnpublishedFile: ReadUnpublishedFile,
+  readUnpublishedEntries: ReadUnpublishedEntries,
   apiName: string,
 ) => {
   const sem = semaphore(MAX_CONCURRENT_DOWNLOADS);
@@ -200,7 +206,7 @@ const fetchUnpublishedFiles = async (
     promises.push(
       new Promise(resolve =>
         sem.take(() =>
-          readUnpublishedFile(key)
+          readUnpublishedEntries(key)
             .then(data => {
               if (data === null || data === undefined) {
                 resolve({ error: true });
@@ -243,12 +249,12 @@ export const entriesByFiles = async (
 
 export const unpublishedEntries = async (
   listEntriesKeys: () => Promise<string[]>,
-  readUnpublishedFile: ReadUnpublishedFile,
+  readUnpublishedEntries: ReadUnpublishedEntries,
   apiName: string,
 ) => {
   try {
     const keys = await listEntriesKeys();
-    const entries = await fetchUnpublishedFiles(keys, readUnpublishedFile, apiName);
+    const entries = await fetchUnpublishedFiles(keys, readUnpublishedEntries, apiName);
     return entries;
   } catch (error) {
     if (error.message === 'Not Found') {

@@ -354,8 +354,9 @@ export class Backend {
     return entries;
   }
 
-  async listAllMultipleEntires(collection: Collection, page: number, locales: string[]) {
+  async listAllMultipleEntires(collection: Collection, page: number) {
     const i18nStructure = collection.get('i18n_structure');
+    const locales = collection.get('locales');
     const depth = i18nStructure === LOCALE_FOLDERS ? 2 : '';
     const entries = await this.listAllEntries(collection, depth);
     let multiEntries;
@@ -387,7 +388,7 @@ export class Backend {
           };
         });
     }
-    return { entries: this.combineMultipleContentEntries(multiEntries, collection) };
+    return { entries: this.combineMultipleContentEntries(multiEntries) };
   }
 
   async search(collections: Collection[], searchTerm: string) {
@@ -536,7 +537,7 @@ export class Backend {
     const integration = selectIntegration(state.integrations, null, 'assetStore');
     const multiContent = collection.get('multi_content');
     const i18nStructure = collection.get('i18n_structure');
-    const locales = state.config.get('locales');
+    const locales = collection.get('locales');
     let loadedEntries;
     let mediaFiles;
 
@@ -986,7 +987,7 @@ export class Backend {
     const extension = selectFolderEntryExtension(collection) as string;
     const MultiContentDiffFiles =
       DIFF_FILE_TYPES.includes(collection.get('i18n_structure')) && collection.get('multi_content');
-    const locales = config.get('locales');
+    const locales = collection.get('locales');
 
     if (!selectAllowDeletion(collection)) {
       throw new Error('Not allowed to delete entries in this collection');

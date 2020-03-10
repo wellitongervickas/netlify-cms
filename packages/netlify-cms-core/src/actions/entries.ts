@@ -383,7 +383,6 @@ export function loadEntries(collection: Collection, page = 0) {
     }
     const state = getState();
     const backend = currentBackend(state.config);
-    const locales = state.config.get('locales');
     const multiContent = collection.get('multi_content');
     const i18nStructure = collection.get('i18n_structure');
     const integration = selectIntegration(state, collection.get('name'), 'listEntries');
@@ -397,7 +396,7 @@ export function loadEntries(collection: Collection, page = 0) {
         : provider.listEntries;
     dispatch(entriesLoading(collection));
     listMethod
-      .call(backend, collection, page, locales)
+      .call(backend, collection, page)
       .then((response: { cursor: typeof Cursor }) => ({
         ...response,
 

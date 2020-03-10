@@ -302,10 +302,10 @@ export default class GitLab implements Implementation {
         branches.map(branch => contentKeyFromBranch(branch)),
       );
 
-    const readUnpublishedBranchFile = (contentKey: string) =>
-      this.api!.readUnpublishedBranchFile(contentKey);
+    const readUnpublishedBranchEntries = (contentKey: string) =>
+      this.api!.readUnpublishedBranchEntries(contentKey);
 
-    return unpublishedEntries(listEntriesKeys, readUnpublishedBranchFile, API_NAME);
+    return unpublishedEntries(listEntriesKeys, readUnpublishedBranchEntries, API_NAME);
   }
 
   async unpublishedEntry(
@@ -317,7 +317,7 @@ export default class GitLab implements Implementation {
     } = {},
   ) {
     const contentKey = generateContentKey(collection, slug);
-    const entries = await this.api!.readUnpublishedBranchFile(contentKey);
+    const entries = await this.api!.readUnpublishedBranchEntries(contentKey);
     const mediaFiles = await loadEntryMediaFiles(
       entries[0].metaData.branch,
       entries[0].metaData.objects.entry.mediaFiles,

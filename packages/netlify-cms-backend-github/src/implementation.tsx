@@ -418,10 +418,10 @@ export default class GitHub implements Implementation {
         branches.map(branch => contentKeyFromBranch(branch)),
       );
 
-    const readUnpublishedBranchFile = (contentKey: string) =>
-      this.api!.readUnpublishedBranchFile(contentKey);
+    const readUnpublishedBranchEntries = (contentKey: string) =>
+      this.api!.readUnpublishedBranchEntries(contentKey);
 
-    return unpublishedEntries(listEntriesKeys, readUnpublishedBranchFile, 'GitHub');
+    return unpublishedEntries(listEntriesKeys, readUnpublishedBranchEntries, 'GitHub');
   }
 
   async unpublishedEntry(
@@ -433,7 +433,7 @@ export default class GitHub implements Implementation {
     } = {},
   ) {
     const contentKey = this.api!.generateContentKey(collection, slug);
-    const entries = await this.api!.readUnpublishedBranchFile(contentKey);
+    const entries = await this.api!.readUnpublishedBranchEntries(contentKey);
     const files = entries[0].metaData.objects.entry.mediaFiles || [];
     const mediaFiles = await loadEntryMediaFiles(
       entries[0].metaData.branch,
