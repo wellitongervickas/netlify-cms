@@ -42,6 +42,7 @@ import {
   FilterRule,
   Collections,
   EntryDraft,
+  Entry,
   CollectionFile,
   State,
   EntryField,
@@ -364,12 +365,11 @@ export class Backend {
       multiEntries = entries
         .filter(entry => locales.some(l => entry.slug.endsWith(`.${l}`)))
         .map(entry => {
-          const path = entry.path.split('.');
-          const locale = path.splice(-2, 2)[0];
+          const locale = entry.slug.slice(-2);
           return {
             ...entry,
             slug: entry.slug.replace(`.${locale}`, ''),
-            contentKey: path.join('.'),
+            contentKey: entry.path.replace(`.${locale}`, ''),
             i18nStructure,
             slugWithLocale: entry.slug,
           };
@@ -553,7 +553,7 @@ export class Backend {
       loadedEntries = await Promise.all(
         locales.map(l =>
           this.implementation
-            .getEntry(path.replace(`${slug}`, `${l}/${slug}`))
+            .getEntry(path.replace(`/${slug}`, `/${l}/${slug}`))
             .catch(() => undefined),
         ),
       );
@@ -687,9 +687,8 @@ export class Backend {
     let path;
     entries.forEach(e => {
       if (i18nStructure === LOCALE_FILE_EXTENSIONS) {
-        const entryPath = e.path.split('.');
-        const locale = entryPath.splice(-2, 1)[0];
-        !path && (path = entryPath.join('.'));
+        const locale = e.slugWithLocale.slice(-2);
+        !path && (path = e.path.replace(`.${locale}`, ''));
         data[locale] = e.data;
       } else if (i18nStructure === LOCALE_FOLDERS) {
         const locale = e.slugWithLocale.slice(0, 2);
@@ -872,34 +871,7 @@ export class Backend {
 
     let entriesObj = [entryObj];
     if (MultiContentDiffFiles) {
-      const i18nStructure = collection.get('i18n_structure');
-      const extension = selectFolderEntryExtension(collection);
-      const data = entryDraft.getIn(['entry', 'data']).toJS();
-      const locales = Object.keys(data);
-      entriesObj = [];
-      if (i18nStructure === LOCALE_FILE_EXTENSIONS) {
-        locales.forEach(l => {
-          entriesObj.push({
-            path: entryObj.path.replace(extension, `${l}.${extension}`),
-            slug: entryObj.slug,
-            raw: this.entryToRaw(
-              collection,
-              entryDraft.get('entry').set('data', entryDraft.getIn(['entry', 'data', l])),
-            ),
-          });
-        });
-      } else if (i18nStructure === LOCALE_FOLDERS) {
-        locales.forEach(l => {
-          entriesObj.push({
-            path: entryObj.path.replace(`${entryObj.slug}`, `${l}/${entryObj.slug}`),
-            slug: entryObj.slug,
-            raw: this.entryToRaw(
-              collection,
-              entryDraft.get('entry').set('data', entryDraft.getIn(['entry', 'data', l])),
-            ),
-          });
-        });
-      }
+      entriesObj = this.getMultipleEntries(collection, entryDraft, entryObj);
     }
 
     const user = (await this.currentUser()) as User;
@@ -941,6 +913,39 @@ export class Backend {
     }
 
     return entryObj.slug;
+  }
+
+  getMultipleEntries(collection: Collection, entryDraft: EntryDraft, entryObj: Entry) {
+    const i18nStructure = collection.get('i18n_structure');
+    const extension = selectFolderEntryExtension(collection);
+    const data = entryDraft.getIn(['entry', 'data']).toJS();
+    const locales = Object.keys(data);
+    const entriesObj = [];
+    if (i18nStructure === LOCALE_FILE_EXTENSIONS) {
+      locales.forEach(l => {
+        entriesObj.push({
+          path: entryObj.path.replace(extension, `${l}.${extension}`),
+          slug: entryObj.slug,
+          raw: this.entryToRaw(
+            collection,
+            entryDraft.get('entry').set('data', entryDraft.getIn(['entry', 'data', l])),
+          ),
+        });
+      });
+    } else if (i18nStructure === LOCALE_FOLDERS) {
+      locales.forEach(l => {
+        entriesObj.push({
+          path: entryObj.path.replace(`/${entryObj.slug}`, `/${l}/${entryObj.slug}`),
+          slug: entryObj.slug,
+          raw: this.entryToRaw(
+            collection,
+            entryDraft.get('entry').set('data', entryDraft.getIn(['entry', 'data', l])),
+          ),
+        });
+      });
+    }
+
+    return entriesObj;
   }
 
   async invokeEventWithEntry(event: string, entry: EntryMap) {
@@ -1020,7 +1025,7 @@ export class Backend {
       } else if (i18nStructure === LOCALE_FOLDERS) {
         for (const l of locales) {
           await this.implementation
-            .deleteFile(path.replace(`${slug}`, `${l}/${slug}`), commitMessage)
+            .deleteFile(path.replace(`/${slug}`, `/${l}/${slug}`), commitMessage)
             .catch(() => undefined);
         }
       }
