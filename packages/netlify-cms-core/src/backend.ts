@@ -735,6 +735,7 @@ export class Backend {
     unpublished = false,
     status,
   }: PersistArgs) {
+    const useWorkflow = selectUseWorkflow(config);
     const newEntry = entryDraft.getIn(['entry', 'newRecord']) || false;
 
     const parsedData = {
@@ -747,7 +748,6 @@ export class Backend {
       slug: string;
       raw: string;
       newPath?: string;
-      oldSlug?: string;
     };
 
     const customPath = getCustomPath(collection, entryDraft);
@@ -783,9 +783,11 @@ export class Backend {
         asset.path = newPath;
       });
     } else {
+      const slug = entryDraft.getIn(['entry', 'slug']);
       entryObj = {
         path: entryDraft.getIn(['entry', 'path']),
-        slug: entryDraft.getIn(['entry', 'slug']),
+        // for workflow entries we refresh the slug on publish
+        slug: customPath && !useWorkflow ? slugFromCustomPath(collection, customPath) : slug,
         raw: this.entryToRaw(collection, entryDraft.get('entry')),
         newPath: customPath,
       };
@@ -804,8 +806,6 @@ export class Backend {
       },
       user.useOpenAuthoring,
     );
-
-    const useWorkflow = selectUseWorkflow(config);
 
     const collectionName = collection.get('name');
 
